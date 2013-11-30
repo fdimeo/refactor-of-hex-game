@@ -14,6 +14,7 @@
 #include <array>
 #include <ctime>    // standard C library
 #include <cstdlib>  // standard C library
+#include <string>
 
 #include <fstream>
 
@@ -63,7 +64,7 @@ class hexGame {
    nodecolor getTileColor(unsigned int nodeNumber);
 
 
-   bool checkForWinner(HexPlayer &player);
+   bool checkForWinner(HexPlayer *player);
 
    friend std::ostream& operator<<(std::ostream &out, hexGame &game);
 
@@ -76,8 +77,11 @@ class Player
 {
  protected:
    unsigned int index;                              // the assigned index for the player (0-none)
+   std::string m_name;                              // the name of the player
 
  public:
+   Player();
+   Player(std::string name);
    virtual void makeMove() = 0;                     // pure virtual function for making a move
    unsigned int getPlayerIndex();
    void setPlayerIndex(unsigned int player_index);
@@ -95,7 +99,7 @@ protected:
    unsigned int m_lastMove;                        // the node number (successfully) chosen last
 
 public:
-   HexPlayer(hexGame &game);
+   HexPlayer(hexGame &game, std::string name);
    playercolor getPlayerColor();
    void setPlayerColor(playercolor color);
    virtual void makeMove() = 0;                    // pure virtual move function
@@ -108,7 +112,8 @@ public:
 // A computer hex game player
 class ComputerHexPlayer:public HexPlayer
 {
- public:
+
+public:
    ComputerHexPlayer(hexGame &game );
    void makeMove();                             // makes a move appropriate for a computer player
    
@@ -117,7 +122,7 @@ class ComputerHexPlayer:public HexPlayer
 // a human hex game player
 class HumanHexPlayer:public HexPlayer
 {
- public:
+public:
    HumanHexPlayer(hexGame &game);
    void makeMove();                            // makes a move appropriate for a human player
    
@@ -531,17 +536,18 @@ int Graph::getNodeValue(unsigned int nodeNumber)
  }
 
 bool Graph::isNodeInGraph(unsigned int nodeNumber)
- {
-    int retval = false;
-    std::map<int, graphPoint* >::iterator it = graphNodes.find(nodeNumber);
-
-    if( it != graphNodes.end())   
-    {
+{
+   
+   int retval = false;
+   std::map<int, graphPoint* >::iterator it = graphNodes.find(nodeNumber);
+   
+   if( it != graphNodes.end())   
+   {
       retval = true;
-    }
-
-    return retval;
- }
+   }
+   
+   return retval;
+}
 
 
 //returns -1 if not found
@@ -1065,7 +1071,8 @@ hexGame::hexGame()
    std::cout << "Choose a board size ";
    std::cin >> m_boardsize;
 
-   Graph *m_pBoard = new Graph();
+   m_pBoard = new Graph();
+   std::cout << "m_pBoard on hexGame construction is " << m_pBoard << std::endl;
    int neighbor_array[3][2] = { { 0, 1}, {-1, 1}, {-1, 0}};
    
    // first create the basic hex board with no connections
@@ -1100,10 +1107,12 @@ hexGame::hexGame()
          }
       }
    }
+   std::cout << "created hex game with " << m_pBoard->getNodeCount() << " node and " << m_pBoard->getEdgeCount() << " connections" << std::endl;
 }
 
 hexGame::~hexGame()
 {
+   std::cout << "hexGame destructor called" << std::endl;
    delete m_pBoard;   // clean up class instance
 }
 
@@ -1166,7 +1175,7 @@ bool hexGame::makeMove(HexPlayer &p, unsigned int row, unsigned int col)
 
 }
 
-bool hexGame::checkForWinner(HexPlayer &player)
+bool hexGame::checkForWinner(HexPlayer *player)
 {
 
    // do we have a winner?
@@ -1178,12 +1187,12 @@ bool hexGame::checkForWinner(HexPlayer &player)
    std::vector< int > mst_solution_vec;
    bool ret = false;
 
-   m_pBoard->doPrim( player.getLastMove(), 
-      player.getPlayerColor(),
+   m_pBoard->doPrim( player->getLastMove(), 
+      player->getPlayerColor(),
       &mst_solution_vec, false);
 
    // now see if we have a winner
-   if(player.getPlayerColor() == nodecolor::BLUE)
+   if(player->getPlayerColor() == nodecolor::BLUE)
    {
       // check if we have a solution that has both north and south edges
       if(mstIncludesRow(0, &mst_solution_vec) && 
@@ -1254,6 +1263,7 @@ std::ostream& operator<<(std::ostream &out, hexGame &game)
       // must do two iterations per row
       for(int row=0; row<game.getGameSize(); row++)
       {
+
          // we need to do two passes for each row, one for the nodes, and one for the interconnects
          for(int rowIter=0; rowIter<2; rowIter++)
          {
@@ -1339,6 +1349,13 @@ std::ostream& operator<<(std::ostream &out, hexGame &game)
 // the Player class implementation
 // ===================================
 //
+Player::Player(){}
+
+Player::Player(std::string name)
+{
+   m_name = name;
+}
+
 void Player::setPlayerIndex(unsigned int player_index)
 {
    index = player_index;
@@ -1354,7 +1371,7 @@ unsigned int Player::getPlayerIndex()
 // ===================================
 //
 
-HexPlayer::HexPlayer(hexGame &game):m_game(game){}
+HexPlayer::HexPlayer(hexGame &game, std::string name):m_game(game), Player(name){}
 
 playercolor HexPlayer::getPlayerColor()
 {
@@ -1363,6 +1380,7 @@ playercolor HexPlayer::getPlayerColor()
 
 void HexPlayer::setPlayerColor(playercolor color)
 {
+   std::cout << m_name << " player is " << color << std::endl;
    m_color = color;
 }
 
@@ -1391,11 +1409,14 @@ unsigned int HexPlayer::getLastMove()
 // The HumanHexPlayer class implemenatation
 // ========================================
 //
-HumanHexPlayer::HumanHexPlayer(hexGame &game):HexPlayer(game){}
+HumanHexPlayer::HumanHexPlayer(hexGame &game):HexPlayer(game, "human"){}
 
 void HumanHexPlayer::makeMove()                             // makes a move appropriate for a human player
 {
    unsigned int choice_row, choice_column;
+
+   // print out the board
+   std::cout << m_game << std::endl;
 
    do
    {
@@ -1404,15 +1425,17 @@ void HumanHexPlayer::makeMove()                             // makes a move appr
 
       if((choice_column == 0) || (choice_column > m_game.getGameSize()))
       {
-         std::cout << "you must choose a column between 0 and " << (m_game.getGameSize()) << std::endl;
+         std::cout << "you must choose a column between 1 and " << (m_game.getGameSize()) << std::endl;
          continue;
       }
 
-      break;
+      break;  // we're done with the column choice when we get a good response from the user
+
    }while(true);
 
    do
    {
+      std::cout << m_color << ", choose a row: ";
       std::cin >> choice_row;
 
       if((choice_row == 0) || (choice_row > m_game.getGameSize()))
@@ -1437,8 +1460,6 @@ void HumanHexPlayer::makeMove()                             // makes a move appr
    // make the move for this player
    m_game.makeMove(*this, (choice_row-1), (choice_column-1));
 
-   // print out the board
-   std::cout << m_game << std::endl;
 
 }
 
@@ -1446,12 +1467,23 @@ void HumanHexPlayer::makeMove()                             // makes a move appr
 // ===========================================
 // The ComputerHexPlayer class implemenatation
 // ===========================================
-//
-ComputerHexPlayer::ComputerHexPlayer(hexGame &game):HexPlayer(game){}
+ComputerHexPlayer::ComputerHexPlayer(hexGame &game):HexPlayer(game, "computer"){}
 
 void ComputerHexPlayer::makeMove()                            // makes a move appropriate for a computer player
 {
-   //null for now
+   // a random move maker for now
+   unsigned int computer_move;
+
+   while(true)
+   {
+      computer_move = rand()%((m_game.getGameSize() * m_game.getGameSize())-1);
+      if (m_game.isMoveLegal(m_game.getTileRow(computer_move), m_game.getTileColumn(computer_move)))
+      {
+         std::cout << m_name << " chooses tile " << m_game.getTileColumn(computer_move) << ", " << m_game.getTileRow(computer_move) << std::endl;
+         m_game.makeMove(*this, m_game.getTileRow(computer_move), m_game.getTileColumn(computer_move));
+         break;
+      }
+   }
 }
 
 
@@ -1471,8 +1503,8 @@ int main()
     // create a new game
     hexGame hexgame;
 
-    std::array< Player *, 2 > hex_players;
-
+    // our two players
+    std::array< HexPlayer *, 2 > hex_players;
 
     // First, let player one choose the color he wants
     HexPlayer *p1 = new HumanHexPlayer(hexgame);
@@ -1484,13 +1516,13 @@ int main()
        std::cin >> players_color_choice;
        if((players_color_choice == 'R') || (players_color_choice == 'r'))
        {
-          p1->setPlayerColor(nodecolor::RED);
+          p1->setPlayerColor(playercolor::RED);
           p1->setPlayerIndex(1);
           break;
        }
        else if ((players_color_choice == 'B') || (players_color_choice == 'b'))
        {
-          p1->setPlayerColor(nodecolor::BLUE);
+          p1->setPlayerColor(playercolor::BLUE);
           p1->setPlayerIndex(0);             
           break;
        }
@@ -1508,9 +1540,26 @@ int main()
     HexPlayer *p2 = new ComputerHexPlayer(hexgame);
 
     p2->setPlayerIndex( p1->getPlayerIndex() ? 0 : 1);
-    p2->setPlayerColor(p1->getPlayerColor() == nodecolor::RED ? nodecolor::BLUE : nodecolor::RED);
+    p2->setPlayerColor(p1->getPlayerColor() == playercolor::RED ? playercolor::BLUE : playercolor::RED);
     hex_players[p2->getPlayerIndex()] = p2;
 
+    // keep playing until there's a winner
+    while(true)
+    {
+
+       for(int index=0; index<2; index++)
+       {
+          hex_players[index]->makeMove();
+          if(hexgame.checkForWinner(hex_players[index]))
+          {
+             std::cout << hex_players[index]->getPlayerColor() << " Wins!!" << std::endl;
+             exit(0);
+          }
+             // print out the board
+          std::cout << hexgame << std::endl;
+
+       }
+    }
 
 }
 
