@@ -1107,7 +1107,6 @@ hexGame::hexGame()
          }
       }
    }
-   std::cout << "created hex game with " << m_pBoard->getNodeCount() << " node and " << m_pBoard->getEdgeCount() << " connections" << std::endl;
 }
 
 hexGame::~hexGame()
@@ -1121,9 +1120,10 @@ inline unsigned int hexGame::getGameSize()
    return m_boardsize;
 }
 
+// zero based rows, col, and result
 inline int hexGame::getTileNumber(unsigned int row, unsigned int col)
 {
-   if((row > m_boardsize) || ( col > m_boardsize))
+   if((row > m_boardsize-1) || ( col > m_boardsize-1))
    {
       return -1;
    }
@@ -1133,16 +1133,17 @@ inline int hexGame::getTileNumber(unsigned int row, unsigned int col)
    }
 }
 
+// zero based
 int hexGame::getTileRow(unsigned int nodeNumber)
 {
-   if(nodeNumber > ( m_boardsize *  m_boardsize)) return -1;
-   else return (nodeNumber/m_boardsize);
+   if(nodeNumber > (( m_boardsize *  m_boardsize)-1)) return -1;
+   else return (nodeNumber / (m_boardsize-1));
 }
 
 int hexGame::getTileColumn(unsigned int nodeNumber)
 {
-   if(nodeNumber > ( m_boardsize *  m_boardsize)) return -1;
-   else return (nodeNumber % m_boardsize);
+   if(nodeNumber > (( m_boardsize *  m_boardsize)-1)) return -1;
+   else return (nodeNumber % (m_boardsize-1));
 
 }
 
@@ -1415,9 +1416,6 @@ void HumanHexPlayer::makeMove()                             // makes a move appr
 {
    unsigned int choice_row, choice_column;
 
-   // print out the board
-   std::cout << m_game << std::endl;
-
    do
    {
       std::cout << m_color << ", choose a column: ";
@@ -1476,10 +1474,14 @@ void ComputerHexPlayer::makeMove()                            // makes a move ap
 
    while(true)
    {
-      computer_move = rand()%((m_game.getGameSize() * m_game.getGameSize())-1);
+      // a number between 0 and the board size
+      computer_move = rand() % (m_game.getGameSize() * m_game.getGameSize());
+
+      std::cout << "computer_move is node number " << computer_move << std::endl;
+
       if (m_game.isMoveLegal(m_game.getTileRow(computer_move), m_game.getTileColumn(computer_move)))
       {
-         std::cout << m_name << " chooses tile " << m_game.getTileColumn(computer_move) << ", " << m_game.getTileRow(computer_move) << std::endl;
+         std::cout << m_name << " chooses tile " << m_game.getTileColumn(computer_move)+1 << ", " << m_game.getTileRow(computer_move)+1 << std::endl;
          m_game.makeMove(*this, m_game.getTileRow(computer_move), m_game.getTileColumn(computer_move));
          break;
       }
@@ -1543,6 +1545,10 @@ int main()
     p2->setPlayerColor(p1->getPlayerColor() == playercolor::RED ? playercolor::BLUE : playercolor::RED);
     hex_players[p2->getPlayerIndex()] = p2;
 
+
+    // print out the board
+    std::cout << hexgame << std::endl;
+
     // keep playing until there's a winner
     while(true)
     {
@@ -1555,7 +1561,8 @@ int main()
              std::cout << hex_players[index]->getPlayerColor() << " Wins!!" << std::endl;
              exit(0);
           }
-             // print out the board
+          
+          // print out the board
           std::cout << hexgame << std::endl;
 
        }
