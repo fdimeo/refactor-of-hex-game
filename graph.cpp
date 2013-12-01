@@ -15,6 +15,9 @@
 #include <ctime>    // standard C library
 #include <cstdlib>  // standard C library
 #include <string>
+#include <chrono>
+#include <random>
+#include <algorithm>
 
 #include <fstream>
 
@@ -34,6 +37,8 @@ enum class playertype {
 typedef nodecolor playercolor;    // the node colors are also the player colors
 typedef unsigned int movevalue;   // the resultant value of a generic move (range is 0-worst to 100-best)
 
+typedef std::vector< unsigned int > uintvec;
+
 // output operator for the playercolor
 std::ostream &operator<<(std::ostream &out, playercolor color)
 {
@@ -41,29 +46,36 @@ std::ostream &operator<<(std::ostream &out, playercolor color)
    return out;
 }
 
+
+
 //
 // the hexGame class definition
 //
-class hexGame {
+class hexGame 
+{
 
  private:
    unsigned int m_boardsize;        // the size of the hex playing board
    Graph *m_pBoard;                 // a pointer to an instance of the board
    bool mstIncludesColumn(unsigned int column, std::vector< int > *pMstVector);
    bool mstIncludesRow(unsigned int row, std::vector< int > *pMstVector);
+   void construct_board();
 
  public:
    hexGame();
    ~hexGame();
+   hexGame(unsigned int gamesize);
    unsigned int getGameSize();
    bool isMoveLegal(unsigned int row, unsigned int col);               // returns true if move is legal
    bool makeMove(HexPlayer &p, unsigned int row, unsigned int col);    // returns true if move was legal
+   bool makeMove(HexPlayer &p, unsigned int node);
    int getTileNumber(unsigned int row, unsigned int col); // compute the absolute position number given the row and node number in that row
    int getTileRow(unsigned int nodeNumber);
    int getTileColumn(unsigned int nodeNumber);
    nodecolor getTileColor(unsigned int nodeNumber);
+   bool getAllFreeTiles(std::vector< unsigned int > &pFreeTiles);
 
-
+   // checks to see if the player specified has won
    bool checkForWinner(HexPlayer *player);
 
    friend std::ostream& operator<<(std::ostream &out, hexGame &game);
@@ -127,6 +139,98 @@ public:
    void makeMove();                            // makes a move appropriate for a human player
    
 };
+
+std::ostream &operator<<(std::ostream &out, std::vector< unsigned int > &vec_of_ints)
+{
+   out << "ints in vector are:" << std::endl;
+
+   for(std::vector< unsigned int >::iterator it=vec_of_ints.begin(); it<vec_of_ints.end(); it++)
+   {
+      out << *it << std::endl;
+   }
+
+   return out;
+
+}
+
+//
+// monte carlo class definition
+//
+class Monte_carlo
+{
+private:
+   static const int NUM_OF_TRIALS=1000;
+   HexPlayer &m_player;                                // the player that we're running this for
+   hexGame *m_p_mcsim_game;                            // our private (hex board) to run the simulation on
+   std::vector<double> trials_results;                 // the percentage win, one for each possible move on the board
+   std::vector< unsigned int > next_moves;             // a vector of next moves for evaluation
+   std::vector< unsigned int > all_possible_moves;     // one move for each possible move on the board
+   
+public:
+   Monte_carlo(HexPlayer &p, hexGame &m_hexgame);      // a reference to the hex board that we're running the mc simulation on
+
+   // A functor because...well...why not? :)  
+   //  Runs the simulation logic and returns the best node (zero based) for the next move
+   unsigned int operator()(Graph &m_mc_graph);        
+
+};
+
+Monte_carlo::Monte_carlo(HexPlayer &p, hexGame &m_hexgame):m_player(p)
+{
+   int gamesize = m_hexgame.getGameSize();
+   m_p_mcsim_game = new hexGame(gamesize);   // a new simulation game
+   unsigned seed = std::chrono::system_clock::now().time_since_epoch().count();
+
+
+   // find all the moves we could make
+   m_p_mcsim_game->getAllFreeTiles(all_possible_moves);
+
+   std::cout << all_possible_moves << std::endl;
+
+   // try each move as the next move 
+   for(uintvec::iterator it=all_possible_moves.begin(); it!=all_possible_moves.end(); it++)
+   {
+      unsigned int next_move = *it;
+
+      // create a vector of the remaining moves 
+      uintvec remaining_moves = all_possible_moves;
+
+      // remove the move from the possible moves
+      remaining_moves.erase(remaining_moves.begin(), remaining_moves.begin());
+
+      m_p_mcsim_game->makeMove(p, next_move);
+      
+      next_moves.push_back(next_move);  // this is the next move we are trialing
+
+      for(int num_trials=0; num_trials<NUM_OF_TRIALS; num_trials++)
+      {
+         std::shuffle (remaining_moves.begin(), remaining_moves.end(), std::default_random_engine(seed));
+         
+         
+
+      }
+
+   }
+}
+
+//===========================================================================================
+//  Monte carlo simulaton logic
+//-------------------------------------------------------------------------------------------
+//
+// copy the board into our class
+//
+// find all the empty nodes in the player game, list them in all_possible_moves
+// for each node in all_possible_moves
+//    place that node on the board AND put it in next_moves location
+//    for each iteration in NUM_OF_TRIALS
+//       shuffle the vector copy of next possible moves
+//       place each tile in the vector copy of next moves on the board, alternate red and blue
+//       see who won
+//       compute the trial results and keep the average in trails_results
+// 
+//  look through each of the trials_results for the largest number
+//  get the associated random_next_move and return it as the answer
+//
 
 
 class ShortestPathAlgo
@@ -632,7 +736,14 @@ void Graph::setNodeColor(unsigned int nodeNumber, enum nodecolor color)
 
    if( it != graphNodes.end())
    {
-      it->second->m_nodeColor = color;
+      // only allow a color change if the node is already no color, or we are trying to
+      //  reset the color of the tile back to NONE.  Once a tile is a play color, it
+      //  can't be flipped back.  This allows us to call this method even when a tile
+      //  has been taken by a player.
+      if((it->second->m_nodeColor == nodecolor::NONE) || (color == nodecolor::NONE))
+      {
+         it->second->m_nodeColor = color;
+      }
    }
 
 }
@@ -1060,19 +1171,10 @@ std::ostream &operator<< (std::ostream &cout, std::list<unsigned int> *path)
 //
 //
 
-//
-// hexGame constructor
-//
-hexGame::hexGame()
+void hexGame::construct_board()
 {
-
-
-   std::cout << "\n\nGame of Hex..." << std::endl;
-   std::cout << "Choose a board size ";
-   std::cin >> m_boardsize;
-
+ 
    m_pBoard = new Graph();
-   std::cout << "m_pBoard on hexGame construction is " << m_pBoard << std::endl;
    int neighbor_array[3][2] = { { 0, 1}, {-1, 1}, {-1, 0}};
    
    // first create the basic hex board with no connections
@@ -1107,6 +1209,27 @@ hexGame::hexGame()
          }
       }
    }
+}
+
+//
+// hexGame constructors
+//
+hexGame::hexGame(unsigned int boardsize)
+{
+   construct_board();
+}
+
+hexGame::hexGame()
+{
+
+
+   std::cout << "\n\nGame of Hex..." << std::endl;
+   std::cout << "Choose a board size ";
+   std::cin >> m_boardsize;
+
+   // construct the game board
+   construct_board();
+
 }
 
 hexGame::~hexGame()
@@ -1171,10 +1294,15 @@ bool hexGame::makeMove(HexPlayer &p, unsigned int row, unsigned int col)
       ret = true;
    }
 
-
    return ret;
 
 }
+
+bool hexGame::makeMove(HexPlayer &p, unsigned int node)
+{
+   return makeMove(p, getTileRow(node) , getTileColumn(node));
+}
+
 
 bool hexGame::checkForWinner(HexPlayer *player)
 {
@@ -1235,6 +1363,23 @@ bool hexGame::mstIncludesRow(unsigned int row, std::vector< int > *pMstVector)
 
    return false;
 }
+
+// on entry, the vector should be empty..but just in case...clear it out
+bool hexGame::getAllFreeTiles(std::vector< unsigned int > &FreeTiles)
+{
+   FreeTiles.clear();
+
+   for(int node=0; node < (getGameSize() * getGameSize()); node++)
+   {
+      if(getTileColor(node) == nodecolor::NONE)
+      {
+         FreeTiles.insert(FreeTiles.begin(), node);
+      }
+   }
+
+   return true;
+}
+
 
 
 
@@ -1564,7 +1709,7 @@ int main()
           
           // print out the board
           std::cout << hexgame << std::endl;
-
+          
        }
     }
 
