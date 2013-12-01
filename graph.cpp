@@ -1137,13 +1137,13 @@ inline int hexGame::getTileNumber(unsigned int row, unsigned int col)
 int hexGame::getTileRow(unsigned int nodeNumber)
 {
    if(nodeNumber > (( m_boardsize *  m_boardsize)-1)) return -1;
-   else return (nodeNumber / (m_boardsize-1));
+   else return (nodeNumber / m_boardsize);
 }
 
 int hexGame::getTileColumn(unsigned int nodeNumber)
 {
    if(nodeNumber > (( m_boardsize *  m_boardsize)-1)) return -1;
-   else return (nodeNumber % (m_boardsize-1));
+   else return (nodeNumber % m_boardsize );
 
 }
 
