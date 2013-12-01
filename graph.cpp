@@ -179,8 +179,14 @@ Monte_carlo::Monte_carlo(HexPlayer &p, hexGame &m_hexgame):m_player(p)
 {
    int gamesize = m_hexgame.getGameSize();
    m_p_mcsim_game = new hexGame(gamesize);   // a new simulation game
+}
+
+unsigned int Monte_carlo::operator()(Graph &m_mc_graph)        
+{
    unsigned seed = std::chrono::system_clock::now().time_since_epoch().count();
 
+   // TO-DO copy the graph to our simluation graph
+   
 
    // find all the moves we could make
    m_p_mcsim_game->getAllFreeTiles(all_possible_moves);
@@ -198,12 +204,13 @@ Monte_carlo::Monte_carlo(HexPlayer &p, hexGame &m_hexgame):m_player(p)
       // remove the move from the possible moves
       remaining_moves.erase(remaining_moves.begin(), remaining_moves.begin());
 
-      m_p_mcsim_game->makeMove(p, next_move);
+      m_p_mcsim_game->makeMove(m_player, next_move);
       
       next_moves.push_back(next_move);  // this is the next move we are trialing
 
       for(int num_trials=0; num_trials<NUM_OF_TRIALS; num_trials++)
       {
+         // shuffle the remaining moves
          std::shuffle (remaining_moves.begin(), remaining_moves.end(), std::default_random_engine(seed));
          
          
