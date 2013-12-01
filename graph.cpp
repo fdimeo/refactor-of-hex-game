@@ -181,12 +181,30 @@ Monte_carlo::Monte_carlo(HexPlayer &p, hexGame &m_hexgame):m_player(p)
    m_p_mcsim_game = new hexGame(gamesize);   // a new simulation game
 }
 
+//===========================================================================================
+//  Monte carlo simulaton logic
+//-------------------------------------------------------------------------------------------
+//
+// copy the board into our class
+//
+// find all the empty nodes in the player game, list them in all_possible_moves
+// for each node in all_possible_moves
+//    place that node on the board AND put it in next_moves location
+//    for each iteration in NUM_OF_TRIALS
+//       shuffle the vector copy of next possible moves
+//       place each tile in the vector copy of next moves on the board, alternate red and blue
+//       see who won
+//       compute the trial results and keep the average in trails_results
+// 
+//  look through each of the trials_results for the largest number
+//  get the associated random_next_move and return it as the answer
+//
 unsigned int Monte_carlo::operator()(Graph &m_mc_graph)        
 {
    unsigned seed = std::chrono::system_clock::now().time_since_epoch().count();
 
    // TO-DO copy the graph to our simluation graph
-   
+
 
    // find all the moves we could make
    m_p_mcsim_game->getAllFreeTiles(all_possible_moves);
@@ -220,24 +238,6 @@ unsigned int Monte_carlo::operator()(Graph &m_mc_graph)
    }
 }
 
-//===========================================================================================
-//  Monte carlo simulaton logic
-//-------------------------------------------------------------------------------------------
-//
-// copy the board into our class
-//
-// find all the empty nodes in the player game, list them in all_possible_moves
-// for each node in all_possible_moves
-//    place that node on the board AND put it in next_moves location
-//    for each iteration in NUM_OF_TRIALS
-//       shuffle the vector copy of next possible moves
-//       place each tile in the vector copy of next moves on the board, alternate red and blue
-//       see who won
-//       compute the trial results and keep the average in trails_results
-// 
-//  look through each of the trials_results for the largest number
-//  get the associated random_next_move and return it as the answer
-//
 
 
 class ShortestPathAlgo
