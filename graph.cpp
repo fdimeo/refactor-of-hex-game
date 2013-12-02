@@ -25,6 +25,7 @@
 class graphPoint;
 class Graph;
 class HexPlayer;
+class Monte_carlo;
 
 // node color class
 enum class nodecolor{ 
@@ -74,6 +75,7 @@ class hexGame
    int getTileColumn(unsigned int nodeNumber);
    nodecolor getTileColor(unsigned int nodeNumber);
    bool getAllFreeTiles(std::vector< unsigned int > &pFreeTiles);
+   void forceTileColor(unsigned int node, playercolor color);
 
    // checks to see if the player specified has won
    bool checkForWinner(HexPlayer *player);
@@ -124,6 +126,8 @@ public:
 // A computer hex game player
 class ComputerHexPlayer:public HexPlayer
 {
+private:
+   Monte_carlo *mc_sim;                         // and instance of the monte carlo simulator
 
 public:
    ComputerHexPlayer(hexGame &game );
@@ -152,7 +156,6 @@ std::ostream &operator<<(std::ostream &out, std::vector< unsigned int > &vec_of_
    return out;
 
 }
-
 //
 // monte carlo class definition
 //
@@ -160,22 +163,23 @@ class Monte_carlo
 {
 private:
    static const int NUM_OF_TRIALS=1000;
-   HexPlayer &m_player;                                // the player that we're running this for
    hexGame *m_p_mcsim_game;                            // our private (hex board) to run the simulation on
+   hexGame &m_hexgame;                                 // a reference to the hex game that we're running the simulation against
    std::vector<double> trials_results;                 // the percentage win, one for each possible move on the board
    std::vector< unsigned int > next_moves;             // a vector of next moves for evaluation
    std::vector< unsigned int > all_possible_moves;     // one move for each possible move on the board
    
 public:
-   Monte_carlo(HexPlayer &p, hexGame &m_hexgame);      // a reference to the hex board that we're running the mc simulation on
+   Monte_carlo(hexGame &m_hexgame);                    // a reference to the hex board that we're running the mc simulation on
 
    // A functor because...well...why not? :)  
-   //  Runs the simulation logic and returns the best node (zero based) for the next move
-   unsigned int operator()(Graph &m_mc_graph);        
+   //  Runs the simulation logic and returns the best node (zero based) for the next move for the game specified
+   unsigned int operator()(HexPlayer &p);        
 
 };
 
-Monte_carlo::Monte_carlo(HexPlayer &p, hexGame &m_hexgame):m_player(p)
+
+Monte_carlo::Monte_carlo(hexGame &hexgame):m_hexgame(hexgame)
 {
    int gamesize = m_hexgame.getGameSize();
    m_p_mcsim_game = new hexGame(gamesize);   // a new simulation game
@@ -199,42 +203,68 @@ Monte_carlo::Monte_carlo(HexPlayer &p, hexGame &m_hexgame):m_player(p)
 //  look through each of the trials_results for the largest number
 //  get the associated random_next_move and return it as the answer
 //
-unsigned int Monte_carlo::operator()(Graph &m_mc_graph)        
+unsigned int Monte_carlo::operator()(HexPlayer &p)        
 {
+
+   std::cout << "Running MC simulation..." << std::endl;
+
    unsigned seed = std::chrono::system_clock::now().time_since_epoch().count();
 
-   // TO-DO copy the graph to our simluation graph
-
+   // copy the graph to our simluation graph
+   for(unsigned int node=0; node < m_p_mcsim_game->getGameSize(); node++)
+   {
+      m_p_mcsim_game->forceTileColor(node, m_hexgame.getTileColor(node));
+   }
 
    // find all the moves we could make
    m_p_mcsim_game->getAllFreeTiles(all_possible_moves);
 
+   // print them out
    std::cout << all_possible_moves << std::endl;
+
+   // create a vector of the remaining moves 
+   uintvec remaining_moves = all_possible_moves;
 
    // try each move as the next move 
    for(uintvec::iterator it=all_possible_moves.begin(); it!=all_possible_moves.end(); it++)
    {
       unsigned int next_move = *it;
 
-      // create a vector of the remaining moves 
-      uintvec remaining_moves = all_possible_moves;
-
       // remove the move from the possible moves
-      remaining_moves.erase(remaining_moves.begin(), remaining_moves.begin());
+      remaining_moves.erase(remaining_moves.begin());
 
-      m_p_mcsim_game->makeMove(m_player, next_move);
+      // print them out
+      std::cout << remaining_moves << std::endl;
+
+      m_p_mcsim_game->forceTileColor(next_move, p.getPlayerColor());
       
       next_moves.push_back(next_move);  // this is the next move we are trialing
 
-      for(int num_trials=0; num_trials<NUM_OF_TRIALS; num_trials++)
+      nodecolor tile_color = ((p.getPlayerColor() == playercolor::RED) ? playercolor::BLUE : playercolor::RED);
+
+      // do this simulation NUM_OF_TRIALS times, compute the win probability as we go
+      for(int num_trials=0; num_trials<1; num_trials++)
       {
          // shuffle the remaining moves
          std::shuffle (remaining_moves.begin(), remaining_moves.end(), std::default_random_engine(seed));
          
+         // now fill the board with alternating colors
+         for (uintvec::iterator rit=remaining_moves.begin(); rit!=remaining_moves.end(); rit++)
+         {
+            m_p_mcsim_game->forceTileColor(*it, tile_color);
+            tile_color = ((tile_color == playercolor::RED) ? playercolor::BLUE : playercolor::RED);
+         }
+
+         std::cout << *m_p_mcsim_game << std::endl;
+         
+         char dbg;
+         std::cout << "hit c to continue";
+         std::cin >> dbg;
+
+         // is this a winner for the player?
          
 
       }
-
    }
 }
 
@@ -752,7 +782,6 @@ void Graph::setNodeColor(unsigned int nodeNumber, enum nodecolor color)
          it->second->m_nodeColor = color;
       }
    }
-
 }
 
 unsigned int Graph::getNodeCount()
@@ -1221,7 +1250,7 @@ void hexGame::construct_board()
 //
 // hexGame constructors
 //
-hexGame::hexGame(unsigned int boardsize)
+hexGame::hexGame(unsigned int boardsize):m_boardsize(boardsize)
 {
    construct_board();
 }
@@ -1305,9 +1334,15 @@ bool hexGame::makeMove(HexPlayer &p, unsigned int row, unsigned int col)
 
 }
 
+
 bool hexGame::makeMove(HexPlayer &p, unsigned int node)
 {
    return makeMove(p, getTileRow(node) , getTileColumn(node));
+}
+
+void hexGame::forceTileColor(unsigned int node, playercolor color )
+{
+   m_pBoard->setNodeColor(node, color);
 }
 
 
@@ -1380,7 +1415,7 @@ bool hexGame::getAllFreeTiles(std::vector< unsigned int > &FreeTiles)
    {
       if(getTileColor(node) == nodecolor::NONE)
       {
-         FreeTiles.insert(FreeTiles.begin(), node);
+         FreeTiles.push_back(node);
       }
    }
 
@@ -1617,13 +1652,17 @@ void HumanHexPlayer::makeMove()                             // makes a move appr
 // ===========================================
 // The ComputerHexPlayer class implemenatation
 // ===========================================
-ComputerHexPlayer::ComputerHexPlayer(hexGame &game):HexPlayer(game, "computer"){}
+ComputerHexPlayer::ComputerHexPlayer(hexGame &game):HexPlayer(game, "computer")
+{
+   mc_sim = new Monte_carlo(m_game);
+}
 
 void ComputerHexPlayer::makeMove()                            // makes a move appropriate for a computer player
 {
    // a random move maker for now
    unsigned int computer_move;
 
+#ifdef RANDOM_MOVE
    while(true)
    {
       // a number between 0 and the board size
@@ -1638,6 +1677,12 @@ void ComputerHexPlayer::makeMove()                            // makes a move ap
          break;
       }
    }
+#else
+
+   (*mc_sim)(*this);
+
+#endif
+
 }
 
 
